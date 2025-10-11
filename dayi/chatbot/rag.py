@@ -8,7 +8,7 @@ import logging
 logging.basicConfig(level = logging.ERROR)
 from llama_index.llms.openai_like import OpenAILike
 import os
-
+import config.load_env as env
 
 def indexing(document_path="./docs", persist_path="knowledge_base/test"):
     """
@@ -70,8 +70,8 @@ def create_query_engine(index):
         # 此处使用qwen-plus-0919模型，你也可以使用阿里云提供的其它qwen的文本生成模型：https://help.aliyun.com/zh/model-studio/getting-started/models#9f8890ce29g5u
         llm = OpenAILike(
             model = "qwen-plus-0919",
-            api_base = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            api_key = os.getenv("DASHSCOPE_API_KEY"),
+            api_base = env.load_url(),
+            api_key = env.load_key(),
             is_chat_model = True
         ))
     return query_engine
