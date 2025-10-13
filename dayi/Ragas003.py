@@ -1,6 +1,6 @@
 # 导入所需的依赖包
 import os
-
+import dayi004
 from h11 import ERROR
 from sqlite_utils.cli import query
 
@@ -76,5 +76,53 @@ def ask(question,query_engine):
     print('=' * 50)
 
     return response
-query_engine = rag.create_query_engine(rag.load_index())
+index = rag.load_index()
+query_engine = index.as_query_engine(
+    streaming=True,
+    # 一次检索出 5 个文档切片，默认为 2
+    similarity_top_k=5,
+    llm=OpenAILike(
+        model="qwen-plus",
+        api_key=env.load_key(),
+        api_base=env.load_url(),
+        is_chat_model=True)
+    )
+# query_engine = rag.create_query_engine(rag.load_index())
 response = ask('张伟是哪个部门的', query_engine)
+
+
+# 定义评估函数
+def evaluate_result(question, response, ground_truth):
+    # 获取回答内容
+    if hasattr(response, 'response_txt'):
+        answer = response.response_txt
+    else:
+        answer = str(response)
+    # 获取检索到的上下文
+    context = [source_node.get_content() for source_node in response.source_nodes]
+
+    # 构造评估数据集
+    data_samples = {
+        'question': [question],
+        'answer': [answer],
+        'ground_truth':[ground_truth],
+        'contexts' : [context],
+    }
+    dataset = Dataset.from_dict(data_samples)
+
+    # 使用Ragas进行评估
+    score = evaluate(
+        dataset = dataset,
+        metrics=[answer_correctness, context_recall, context_precision],
+        llm=Tongyi(model_name="qwen-plus"),
+        embeddings=DashScopeEmbeddings(model="text-embedding-v3")
+    )
+    return score.to_pandas()
+
+question = '张伟是哪个部门的'
+ground_truth = '''公司有三名张伟，分别是：
+- 教研部的张伟：职位是教研专员，邮箱 zhangwei@educompany.com。
+- 课程开发部的张伟：职位是课程开发专员，邮箱 zhangwei01@educompany.com。
+- IT部的张伟：职位是IT专员，邮箱 zhangwei036@educompany.com。
+'''
+evaluate_result(question = question, response = response, ground_truth = ground_truth)
